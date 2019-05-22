@@ -1,0 +1,367 @@
+---
+title: "Final Project"
+output: html_document
+---
+
+
+1. data curation, parsing, and management:
+
+Let’s pull the data first. Download the listings.csv file from the Airbnb data site, and put it in the /data folder (or wherever your RStudio files are stored). 
+
+Just like other coding languages, we need to import certain packages to get the methods that we want. To import packages, we use the library(package) function. For this example, we’ll import the tidyverse package that helps in tidy data (we’ll talk more about tidy data in a bit). 
+Now, we’re going to need a variable to store the data in. Let’s call it dc_listings. Call read_csv(“listings.csv) and assign it to your variable as shown below. 
+
+```{r setup, include=FALSE}
+library(tidyverse)
+dc_listings <- read_csv("listings.csv")
+```
+Simple! We’ve “read” the csv data and put it into our variable, a data frame we’ve named dc_listings. We’re going to be playing with this dc_listings data frame throughout this tutorial. 
+
+Let’s analyze what’s even in this data frame. To call the data frame and see what’s inside, just type your data frame’s name. 
+
+```{r echo=TRUE}
+dc_listings
+```
+
+Great, now we can see some of the rows and columns. Each row is representing a listing -- an “entity” as we call it in database literature. And each of the columns gives us details about the listings. The columns are known as “attributes”.
+
+It’s important to note that there are different types of attributes. A ***categorical*** attribute is an attribute that can only take one of a finite amount of values. They help a lot in, you guessed it, categorization. For example, if you scroll through the columns, you’ll see that room_type is a categorical attribute, as the values of these attributes are finite and can only be “Private room”, “Entire home/apt”, “Shared room”, etc. There are only a finite amount of types of rooms there can be. 
+
+There are also ***discrete numeric*** attributes. These are attributes that specific values from elements of ordered, discrete, sets. The most common of this are non-negative integers, most frequently used in counting processes. For example, the beds attribute is discrete numeric. There can only be a positive integer number of beds. 
+
+We also have ***continuous numeric*** attributes. These are attributes that can take any value in a continuous set. A good example of this is a person’s height. Someone can be 6’, or 5’ or 5.5’ technically. These don’t have to be integers. This type of attributes are very common in measurements. Can you find a column which is a continuous numeric attribute?
+
+
+Sometimes, we only want to see a certain amount of data that fulfill a certain requirement. For example, let's say right now we only care about available listings. We can implement a filter with a certain condition, like the has_availability tab being equal to true. 
+```{r}
+dc_listings <- 
+  dc_listings %>% 
+  filter(has_availability == TRUE)
+
+dc_listings
+```
+
+
+Now, let’s try to do a simple plot. There are many types of plots we can do (we'll get into that in the next section), but let's do a scatter plot for now. Look at the ggplot function below. The geom_point() component means we’ll be doing a scatter plot.
+
+
+```{r}
+dc_listings %>%
+group_by(bathrooms, beds) %>%
+summarize(n_distinct(beds)) %>%
+ggplot(mapping=aes(y=bathrooms, x=beds)) + geom_point()
+```
+
+
+Let’s set up the data so that we’ll be good for our future analysis: 
+We need to change the price into numeric so it helps in manipulation and plotting. So we'll just run the as.numeric function to convert the value. 
+
+We also want to make the property type, room type, bed type, and neighbourhoods into factors. So we'll just run the as.factor function on them.
+
+Why does this matter? Let's take bed_type as an example. Right now, beds can be classified as Real bed, Pull out sofa, etc. But making these into factors means that we can group them easier, meaning all entities with "Real bed" attributes can be categorized similarly. 
+```{r}
+dc_listings$price <- as.numeric(str_replace_all(dc_listings$price, "\\$|,|[\\.00]", ""))
+dc_listings$property_type <- as.factor(dc_listings$property_type)
+dc_listings$room_type <- as.factor(dc_listings$room_type)
+dc_listings$bed_type <- as.factor(dc_listings$bed_type)
+dc_listings$neighbourhood <- as.factor(dc_listings$neighbourhood)
+dc_listings
+```
+
+
+
+2. exploratory data analysis:
+
+Distribution 
+
+One of the reasons data science is important is because it helps us answer important questions. In the scope of Airbnb listings, there are lots of questions this dataset can answer.
+
+Our goal in this section is to see what really affects price. Does paying more for an Airbnb mean we'll get a better Airbnb experience? Does it mean we'll get a higher rated property? What about the hosts? Are they better as we pay more for properties? Cleanliness? Etc?
+
+So let's walk through some of the exploratory data analysis. To answer these questions, we'll focus on the distribution.
+
+Probably one of the most important questions we want to answer is whether paying more for an Airbnb results in an overall better experience. We'll constitute "review_scores_rating" as "better experience". 
+
+So, let's do a simple plot with price on the x axis and review_scores_rating on the y axis. Since we want to see the distribution of points, we're going to use a scatter plot.
+```{r}
+
+dc_map_analysis <- dc_listings %>%
+  filter(price <= 1500) %>%
+  ggplot(mapping=aes(x=review_scores_rating, y=price)) + geom_point()
+
+dc_map_analysis
+```
+
+If you notice, the reason we added the price filter is because without the filter, the y axis goes too high and makes the points more difficult to analyze. 
+
+So what can we conclude based off of this distribution? A higher priced listing will generally yield in a higher rating, but a lower priced listing ***does not necessarily result in a lower rating***. We can clearly see a few lower priced listings having a low rating, although not really any higher priced listings having a lower ratings. But there are a lot of lower priced listings having high ratings too.
+
+Now, what about the hosts' communication? We can make a similar plot again, but now with the y axis being review_scores_communication. Let's try a boxplot this time, as it's more fitting for review_scores_communication
+
+```{r}
+dc_map_analysis <- dc_listings %>%
+  filter(price <= 500) %>%
+  ggplot(aes(x=review_scores_communication, y=price, group=review_scores_communication)) + scale_y_continuous(labels = scales::comma) +
+    geom_boxplot()
+
+dc_map_analysis
+
+```
+Note that we had to filter the price for 500 and below because without the filter, we could see a lot of outliers making the graph hard to read. 
+
+From this boxplot, we can conclude that a higher priced listing does indeed result in better communication from the host at the high end. However, the rest becomes a little more hazy. Lower priced listings also result in good communication, although it is more likely to have poor communication in a lower priced listing. There are also some points where we see that there is poor communication in reasonably higher priced listings, so that is important to note. 
+
+Another thing we can notice through this is ***central tendency***. Note the median line for each of the boxes and compare it with the medians of the other lines. This trend is known as the central tendency, and we can tell the central tendency through the data point which reflects the center of the data distribution (in this case, the median). Noticing a central tendency is extremely important when analyzing data.
+
+
+When we calculate the mean price, we can get a better look at the trends between price and rating. Here we'll learn how to calculate values for an axis and plot it accordingly. Also, let's also add a line of best fit to help see the trend. 
+```{r}
+dc_listings %>%
+     group_by(price) %>%
+     filter(price <= 1500) %>%
+     #We're going to apply this filter because there isn't enough data above a price of 1500, making the plot more difficult to see. 
+     rowid_to_column() %>%
+     summarize(mean_rating = mean(review_scores_rating)) %>%
+     #Call summarize and calculate the mean rating with the mean function
+     ggplot(mapping=aes(x=mean_rating, y=price)) +
+     geom_point() + geom_smooth(method=lm) + scale_y_continuous(labels = scales::comma)
+
+```
+
+
+Let's do a mean on the price instead now. 
+```{r}
+dc_listings %>%
+     group_by(review_scores_rating) %>%  
+     rowid_to_column() %>%
+     summarize(mean_price = mean(price, trim = 0, na.rm = TRUE)) %>%     
+     ggplot(aes(x=review_scores_rating, y=mean_price)) +
+     geom_point() + scale_y_continuous(labels = scales::comma) + geom_smooth(method=lm) + scale_y_continuous(labels = scales::comma)
+
+```
+
+What are some conclusions you can make based on the last two plots now that we've found the mean of some of the variables? 
+
+
+Taking a break from the question at hand, we'd need to focus on different types of plots. 
+
+Scatterplots and boxplots aren't the only type of plots we can make. We can also do bar graphs, histograms, and more. Depending on the type of data and what we're plotting, we need to choose a type of plot accordingly. 
+
+For example, if we want to plot the number of listings for each zip code in DC, we'd use a bar graph. Bar graphs help us display the relationship between a continuous variable to a categorical (or discrete) attribute. 
+
+Here's an example of a bar graph plotting the number of available properties in a specific zip code. 
+```{r}
+dc_avail_prop_map <- dc_listings %>%
+
+group_by(zipcode) %>%
+summarize(Representation = n_distinct(zipcode), available_properties = n()) %>%
+    select(zipcode, available_properties)  %>% head(10) %>%
+    ggplot(mapping=aes(x=zipcode, y=available_properties)) +
+    geom_bar(stat="identity")
+
+dc_avail_prop_map
+
+```
+
+In different scenarios, we can use histograms. Histograms are used to visualize the distribution of the values of a numeric attribute. Let's say we want to see how many properties have a certain number of beds. 
+
+Let's create that histogram easily.
+```{r}
+dc_hist <- dc_listings %>%
+  group_by(beds) %>%
+  filter(beds <= 6) %>%
+  #Most of the beds are less than 6, so let's just see the distribution for 6 beds and below
+  ggplot(aes(x=beds, label="beds")) +
+     geom_histogram(binwidth = 1)
+
+dc_hist
+
+```
+
+
+
+Bonus: 
+When it comes to location based datasets like ours, it can be helpful to be able to visualize locations. So, the best way to visualize this is through an interactive map, where you can see your datapoints and click/hover on them to view information. 
+
+Let's create a map for all listings with a perfect 100 review_scores_rating. 
+
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(leaflet)
+
+# We want to only see the listings with a perfect rating 
+map_data <- filter(dc_listings, review_scores_rating == 100)
+
+# For the leaflet map, we need to make sure our latitude is named lat and longitude is named lng. 
+colnames(map_data)[colnames(map_data)=="latitude"] <- "lat"
+colnames(map_data)[colnames(map_data)=="longitude"] <- "lng"
+
+
+#Let's make some labels for our datapoints. For this, call the getLabel function and construct the string we want displayed as a label. 
+getLabel <- function(d) {
+  p<-paste("",  d$name)
+  p<-paste(p,  d$price)
+  p
+}
+
+#Now let's create that map. Play around with some of the parameters to make your map look the way you want. You can change the type of markers and colors, and even change it depending on the type of data you have. 
+map <- leaflet(map_data) %>% 
+  addTiles() %>%
+  addCircleMarkers(
+    radius = 5,
+    stroke = FALSE, 
+    fillOpacity = 0.5,
+    label = getLabel(map_data)
+  ) %>% 
+  setView(lat= 38.9072, lng = -77.0369, zoom=12)
+
+map
+```
+
+
+
+3. hypothesis testing and machine learning to provide analysis:
+
+Exploratory data analysis is useful for depicting variables of a dataset in unique ways, but in order to draw information about the relationships between those variables we must delve into the areas of hypothesis testing and machine learning.  Hypothesis testing is a method by which we can establish hypotheses about the relationships between data and use analysis and regression models to test their validity.  For this dataset, let's suppose we want to test whether there is a relationship between price and the type of room being rented out (Entire home/apt, Private room, or shared room).  First, let's plot the data to see if a linear regression model might fit. (Here we take a 20% sample of the data to make the plot easier to read)
+
+```{r}
+dc_listings %>%
+  sample_frac(.2) %>%
+  ggplot(aes(x=factor(room_type), y=price)) +
+    geom_point() +
+    labs(title="Price by Room Type",
+         x = "Room Type",
+         y = "Price")
+```
+We can also use a violin plot to better visualize the distribution of price by room type:
+
+```{r}
+dc_listings %>%
+  sample_frac(.2) %>%
+  ggplot(aes(x=factor(room_type), y=price)) +
+    geom_violin() +
+    labs(title="Price by Room Type",
+         x = "Room Type",
+         y = "Price")
+```
+
+From the scatter and violin plots, we can observe that listings offering the entire home/apartment tend to have higher prices than private rooms, which then in turn have higher prices than shared rooms.  This plot alludes to the possibility of a linear regression model being a good fit for the data since the room type appears to have an effect on price.  This linear model will predict price based on the room type by estimating coefficients and an intercept value in the form:
+
+predicted price = B0 + B1(x1) + B2(x2)
+
+The values x1 and x2 are coded as indicator variables for the room types of private rooms and shared rooms respectively.  This means that if x1 and x2 are 0, B0 holds the predicted price of listings offering the whole house/apartment.  If either x1 or x2 are 1, B1 or B2 will hold the predicted price differential from the intercept for the indicated room type.  Before we determine the fit of the linear model, we will first use the lm() function to apply the linear model to the data and determine the meanings of the coefficients that the model provides.
+
+```{r}
+lm_dc_listings <- lm(price~room_type, data=dc_listings)
+lm_dc_listings
+```
+
+The fitted linear model coefficients tell us the expected prices of each type of room.  The intercept value corresponds with B0 and tells us that listings offering the whole house/apartment are $105.39 on average.  Private rooms fall an average of $55.63 short of this price at $49.76.  Shared rooms are even less expensive on average, falling $70.26 short of the full apartment/house price at $35.13.  While these coefficients are helpful, they are estimates and should not be mistaken for actual population parameters.  Because of this technicality, it helps to know how accurate our estimations of these parameters are.  We can use the tidy() function to get the standard error for the estimates each room type as follows:
+
+```{r}
+library(broom)
+lm_dc_listings_stats <- lm_dc_listings %>%
+  tidy() %>%
+  select(term, estimate, std.error)
+lm_dc_listings_stats
+```
+
+Using the standard errors for each room type, we can construct 95% confidence intervals that give us a sense of where the true population parameters for B0, B1, and B2 lie.  Construction of a 95% confidence interval of a parameter B1 would be completed by calculating:
+
+B1 = ^B1 ± 1.95 * standard error(^B1)
+
+Computation of confidence intervals for B0, B1, and B2 in this linear regression model yields:
+
+^B0 = 105.39		se(^B0) = 1.76
+^B1 = -55.62		se(^B1) = 3.35
+^B2 = -70.25		se(^B2) = 9.61
+
+
+	B0 (house/apt) 	= 	105.39 ± 3.43	=	[101.96, 108.82]
+	B1 (private rooms)	= 	-55.62 ± 6.53	=	[-62.15, -49.09]
+	B2 (shared rooms) 	= 	-70.25 ± 18.73	=	[-88.98, -51.52]
+
+The linear regression model estimates the relationship between two variables, and since the variable we are regressing on is a factor, the lm() function automatically splits the factor up and codes it as a series of indicator variables before regression.  Consequently, the regression model produces separate estimates for each level of the factor, which means that we must check the statistical validity of each level's estimate as part of determining the fit of this linear regression model.  This is where hypothesis testing comes into play.  The hypothesis we want to observe is the hypothesis that there is a relationship between price and room type.  We will be testing this hypothesis against the null hypothesis that states We can accomplish this by again using the tidy() function to obtain the P-values for each coefficient estimate as follows:
+
+```{r}
+lm_dc_listings_stats <- lm_dc_listings %>%
+  tidy()
+lm_dc_listings_stats
+```
+
+Looking at the P-values, we can determine that the relationships between price and room type are statistically significant, given that they are all below 0.05.  This means that there is less than a 5% chance that we could have gotten this data if there was not a relationship between price and room type.  Now that we have established the significance of our findings, we should do some final checks to see if the linear model is the best fit for this data.  We can do so by using the augment() function to acquire information about the linear predictions fit for each data point.
+
+```{r}
+dc_listings_aug <- 
+  lm_dc_listings %>%
+  augment()
+dc_listings_aug %>%
+  head()
+```
+
+In this data frame, the .fitted and the .resid variables will be very helpful in determining the fit of our linear model to this relationship.  the "fitted" values are the values that the regression model predicted for each listing.  In this case, there were only 3 possible fitted values since room_type is a 3-leveled factor variable.  These fitted values are therefore the coefficients that we obtained by running the linear regression model through the tidy() function.  The "resid" values correspond to the residual values for each listing, or the difference between the observed price and the predicted price for its respective room type.  Graphing the residual values vs. the fitted values will give us a good idea of how well the linear model fits this data.
+
+```{r}
+dc_listings_aug %>%
+  ggplot(aes(x=.fitted,y=.resid)) +
+    geom_point() +
+    labs(x="fitted", y="residual")
+```
+Alternative violin plot:
+
+```{r}
+dc_listings_aug %>%
+  ggplot(aes(x=factor(.fitted),y=.resid)) +
+    geom_violin() +
+    labs(x="fitted", y="residual")
+```
+
+Judging from the residual plot, it is clear that a linear model for regression does not fit this data, and that we either need to edit the data by removing outliers or find another non-linear regression model that would fit this data.  Despite the fact that the relationships between price and room type were statistically significant, this model does not fit the data because the residuals are not evenly distributed around 0 for all fitted values.  In an optimal regression model, the residuals would exhibit a random and unpatterned distribution concentrated around 0, but these plots show an uneven distribution around 0, indicating that a linear model is not the best fit for this data.
+
+Check out this site for more info about what to do if your data does not fit a linear regression model: https://www.quality-control-plan.com/StatGuide/mulreg_alts.htm
+
+However, it is possible that this linear model might fit the data if we remove any outliers in the data.  If we look at the following boxplot, we are able to see that many outliers are present, one of which is listed at around $5000, which is way above our estimated coefficient and is bound to throw off our regression model's accuracy.  
+
+```{r}
+boxplot(dc_listings$price)
+```
+
+We can remove the outliers from this dataset using the following code:
+
+```{r}
+outliers <- boxplot(dc_listings$price, plot=FALSE)$out
+dc_listings <- dc_listings[-which(dc_listings$price %in% outliers),]
+boxplot(dc_listings$price)
+```
+
+After removing the outliers, our data is much easier to read and will make it easier for a linear regression model to fit due to the reduced variance in our data.
+
+```{r}
+dc_listings %>%
+  sample_frac(.2) %>%
+  ggplot(aes(x=factor(room_type), y=price)) +
+    geom_violin() +
+    labs(title="Price by Room Type",
+         x = "Room Type",
+         y = "Price")
+```
+
+Furthermore, we can also regress on more variables in order to improve the predicted values of the regression.  This process is called multiple linear regression and can be done in the same way we regressed on a single variable, but we add more variables to the lm() function parameter using '+' to append any other variables you want to account for in the regression.  
+
+```{r}
+lm_dc_listings <- lm(price~room_type + neighbourhood, data=dc_listings)
+dc_listings_aug <- 
+  lm_dc_listings %>%
+  augment()
+dc_listings_aug %>%
+  ggplot(aes(x=factor(.fitted),y=.resid)) +
+    geom_violin() +
+    labs(x="fitted", y="residual")
+```
+
+In this case, we chose to include the listing's neighborhood to be another predictor of price.  We essentially did the same thing we did for single linear regression (lm() to build the linear regression model, augment() to obtain the residuals, and then plotted the residuals against the fitted data).  The resulting linear model isn't a perfect fit for the data, but it shows how removing outliers and regressing on other predictor variables can significantly change the reliability of a linear model.  Although it doesn't fit the linear model exactly, it is still an improvement on the model that regressed on the room type alone.  This can be seen through the more even spread that the data has around 0, with more residuals appearing below the predicted value than the previous model where most residuals appeared above the predicted value.
+
+
+
